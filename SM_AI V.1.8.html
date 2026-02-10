@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Dashboard V.1.8.8</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .glass-card { 
+            background: white; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 1.5rem; 
+            padding: 1.5rem; 
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); 
+            transition: all 0.3s ease-in-out; 
+        }
+        [x-cloak] { display: none !important; }
+        .list-scroll { overflow-y: auto; scrollbar-width: thin; }
+        .list-scroll::-webkit-scrollbar { width: 4px; }
+        .list-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 9999px; }
+        .truncate-custom { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; display: block; }
+        
+        .legend-item { transition: opacity 0.2s; user-select: none; }
+        .legend-item.clickable { cursor: pointer; }
+        .legend-item.clickable:hover { opacity: 0.7; background-color: #f1f5f9; }
+        .legend-item.static { cursor: default; }
+
+        /* Suggestion Dropdown */
+        .suggestion-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; color: #475569; }
+        .suggestion-item:hover { background-color: #f8fafc; color: #4f46e5; }
+        .suggestion-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body x-data="dashboardApp()" class="flex min-h-screen text-slate-800">
+
+    <div x-show="loading" class="fixed inset-0 bg-white/95 backdrop-blur-sm z-[100] flex flex-col items-center justify-center transition-opacity">
+        <div class="animate-spin rounded-full h-12 w-12 border-[5px] border-indigo-500 border-t-transparent mb-4"></div>
+        <p class="text-indigo-600 font-bold text-lg tracking-wide">Loading V.1.8.8...</p>
+    </div>
+
+    <aside :class="sidebarOpen ? 'w-64' : 'w-20'" class="bg-white border-r border-slate-100 flex flex-col sticky top-0 h-screen transition-all duration-300 z-50 shadow-sm">
+        <div class="p-5 flex items-center justify-between h-20">
+            <div x-show="sidebarOpen" class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-200">TS</div>
+                <span class="font-bold text-slate-800 text-lg tracking-tight">V.1.8.8</span>
+            </div>
+            <button @click="sidebarOpen = !sidebarOpen" class="p-2 hover:bg-slate-50 rounded-lg text-slate-400 hover:text-indigo-500 transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+        </div>
+        <nav class="flex-1 px-4 mt-6 space-y-2">
+            <button @click="currentTab = 'overview'; $nextTick(() => updateOverview())" :class="currentTab === 'overview' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'" class="flex items-center w-full p-3.5 rounded-2xl transition-all font-medium">
+                <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+                <span x-show="sidebarOpen" class="ml-3">Overview</span>
+            </button>
+            <button @click="currentTab = 'teamview'; $nextTick(() => updateTeamView())" :class="currentTab === 'teamview' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'" class="flex items-center w-full p-3.5 rounded-2xl transition-all font-medium">
+                <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <span x-show="sidebarOpen" class="ml-3">Team View</span>
+            </button>
+        </nav>
+    </aside>
+
+    <main class="flex-1 p-8 overflow-y-auto">
+        <header class="mb-10 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800 tracking-tight" x-text="currentTab === 'overview' ? 'Organization Overview' : 'Team Insights'"></h1>
+                <p class="text-slate-400 text-sm mt-1">Real-time performance analytics</p>
+            </div>
+            <button @click="fetchData()" class="bg-slate-900 text-white border border-slate-900 px-6 py-2.5 rounded-xl text-sm font-semibold hover:bg-white hover:text-slate-900 shadow-lg shadow-slate-200 transition-all active:scale-95 flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Sync Data
+            </button>
+        </header>
+
+        <section x-show="currentTab === 'overview'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0" x-cloak>
+            <div class="glass-card grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <div>
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Filter Date</label>
+                    <div class="flex items-center space-x-3">
+                        <input type="date" x-model="startDate" @change="updateOverview()" class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+                        <span class="text-slate-300 font-medium">to</span>
+                        <input type="date" x-model="endDate" @change="updateOverview()" class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Group By</label>
+                    <select x-model="overviewGroupBy" @change="updateOverview()" class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none cursor-pointer focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+                        <option value="task_group">Task Group</option>
+                        <option value="task_type">Task Type</option>
+                        <option value="Team_name">Team</option>
+                        <option value="role">Role</option>
+                        <option value="testing_subtask">Task Group: Testing</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="glass-card mb-8 transition-all duration-300 relative" 
+                 :class="expanded.overview ? 'h-auto min-h-[400px]' : ''">
+                <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                    <h3 class="text-lg font-bold text-slate-700 tracking-tight" x-text="overviewChartTitle"></h3>
+                    <button @click="toggleExpand('overview')" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-lg hover:bg-slate-100">
+                        <template x-if="!expanded.overview"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></template>
+                        <template x-if="expanded.overview"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></template>
+                    </button>
+                </div>
+                <div :class="expanded.overview ? 'grid grid-cols-1 lg:grid-cols-2 gap-8' : 'flex flex-col items-center'">
+                    <div class="relative w-full flex justify-center items-start">
+                        <div class="h-72 w-full relative"><canvas id="overviewChart"></canvas></div>
+                    </div>
+                    <div class="w-full transition-all duration-300" :class="expanded.overview ? 'border-l border-slate-100 pl-6' : 'mt-6 h-28 list-scroll border-t border-slate-100 pt-4'">
+                        <div x-show="!expanded.overview" class="flex flex-wrap justify-center gap-x-6 gap-y-2">
+                            <template x-for="(item, index) in legends['overviewChart']" :key="index"><div class="legend-item static flex items-center space-x-2"><span class="w-3 h-3 rounded-full" :style="`background-color: ${item.color}`"></span><span class="text-xs font-medium text-slate-600" x-text="item.label"></span></div></template>
+                        </div>
+                        <div x-show="expanded.overview">
+                            <div class="grid grid-cols-3 gap-2 mb-2 pb-1 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider"><div class="col-span-2" x-text="getColumnName(overviewGroupBy)"></div><div class="text-right">Hours</div></div>
+                            <div class="space-y-1"><template x-for="(item, index) in legends['overviewChart']" :key="index"><div class="legend-item static grid grid-cols-3 gap-2 items-center py-1.5 border-b border-slate-50 hover:bg-slate-50 rounded-lg px-2"><div class="col-span-2 flex items-center space-x-2"><span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="`background-color: ${item.color}`"></span><span class="text-xs font-medium text-slate-700 truncate" x-text="item.label" :title="item.label"></span></div><div class="text-right"><span class="text-xs font-bold text-slate-800" x-text="item.value.toFixed(0)"></span></div></div></template></div>
+                            <div class="mt-2 pt-2 border-t border-slate-200 flex justify-between items-center bg-slate-50 px-2 py-1 rounded"><span class="text-[10px] font-bold text-slate-600 uppercase">Total</span><span class="text-[10px] font-bold text-indigo-600" x-text="getTotal('overviewChart') + ' Hrs'"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="border-2 border-red-100 bg-red-50/30 p-5 rounded-2xl flex flex-col h-[300px]">
+                    <div class="flex justify-between items-center mb-4"><h4 class="text-red-600 font-bold text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span> Incomplete Task Type</h4><span class="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full" x-text="incompleteTasks.type.length"></span></div>
+                    <div class="list-scroll space-y-2 flex-grow"><template x-for="(task, index) in incompleteTasks.type" :key="index"><a :href="'https://ntldigital.atlassian.net/browse/' + task.key" target="_blank" class="block p-3 bg-white border border-red-100 rounded-xl hover:shadow-md transition"><span class="text-[11px] font-medium text-gray-700 truncate-custom" x-text="`[${task.team}] – ${task.key} : ${task.name}`"></span></a></template><div x-show="incompleteTasks.type.length === 0" class="text-center text-xs text-gray-400 py-4 italic">No items found</div></div>
+                </div>
+                <div class="border-2 border-red-100 bg-red-50/30 p-5 rounded-2xl flex flex-col h-[300px]">
+                    <div class="flex justify-between items-center mb-4"><h4 class="text-red-600 font-bold text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span> Incomplete Sub-Task</h4><span class="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full" x-text="incompleteTasks.sub.length"></span></div>
+                    <div class="list-scroll space-y-2 flex-grow"><template x-for="(task, index) in incompleteTasks.sub" :key="index"><a :href="'https://ntldigital.atlassian.net/browse/' + task.key" target="_blank" class="block p-3 bg-white border border-red-100 rounded-xl hover:shadow-md transition"><span class="text-[11px] font-medium text-gray-700 truncate-custom" x-text="`[${task.team}] – ${task.key} : ${task.name}`"></span></a></template><div x-show="incompleteTasks.sub.length === 0" class="text-center text-xs text-gray-400 py-4 italic">No items found</div></div>
+                </div>
+                <div class="border-2 border-red-100 bg-red-50/30 p-5 rounded-2xl flex flex-col h-[300px]">
+                    <div class="flex justify-between items-center mb-4"><h4 class="text-red-600 font-bold text-[10px] uppercase tracking-widest flex items-center"><span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span> Other (Wrong Mapping)</h4><span class="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full" x-text="incompleteTasks.other.length"></span></div>
+                    <div class="list-scroll space-y-2 flex-grow"><template x-for="(task, index) in incompleteTasks.other" :key="index"><a :href="'https://ntldigital.atlassian.net/browse/' + task.key" target="_blank" class="block p-3 bg-white border border-red-100 rounded-xl hover:shadow-md transition"><span class="text-[11px] font-medium text-gray-700 truncate-custom" x-text="`[${task.team}] – ${task.key} : ${task.name}`"></span></a></template><div x-show="incompleteTasks.other.length === 0" class="text-center text-xs text-gray-400 py-4 italic">No items found</div></div>
+                </div>
+            </div>
+        </section>
+
+        <section x-show="currentTab === 'teamview'" x-cloak>
+            <div class="glass-card space-y-6 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Date Range</label>
+                        <div class="flex items-center space-x-3">
+                            <input type="date" x-model="startDate" @change="updateTeamView()" class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+                            <span class="text-slate-300 font-medium">to</span>
+                            <input type="date" x-model="endDate" @change="updateTeamView()" class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Select Team</label>
+                        <select x-model="selectedTeam" @change="clearUserAndUpdate()" class="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none cursor-pointer focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400">
+                            <option value="-">- Select Team -</option>
+                            <template x-for="(team, index) in teamList" :key="index"><option :value="team" x-text="team"></option></template>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 block">Search User</label>
+                    <div class="relative">
+                        <div class="flex space-x-3 relative z-20">
+                            <div class="relative flex-grow">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></span>
+                                <input type="text" x-model="searchUser" 
+                                       @input="handleSearchInput()" 
+                                       @keyup.enter="performSearch()"
+                                       @click.outside="showDropdown = false"
+                                       placeholder="Search by Name or Email..." 
+                                       class="pl-10 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-sm w-full outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400"
+                                       :class="{'border-red-400 focus:border-red-400 focus:ring-red-100': searchError}">
+                            </div>
+                            <button @click="performSearch()" class="bg-slate-800 text-white px-8 py-2.5 rounded-xl text-sm font-semibold hover:bg-slate-900 transition shadow-lg shadow-slate-200">Search</button>
+                        </div>
+                        
+                        <div x-show="showDropdown && suggestedUsers.length > 0" class="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl list-scroll max-h-48 overflow-hidden">
+                            <template x-for="(user, index) in suggestedUsers" :key="index">
+                                <div @click="selectSuggestion(user)" class="suggestion-item">
+                                    <span class="font-medium text-slate-700" x-text="user.name"></span>
+                                    <span class="text-xs text-slate-400 ml-2" x-text="'(' + user.email + ')'" x-show="user.email"></span>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <p x-show="searchError" class="absolute text-red-500 text-xs mt-1 ml-2 font-medium" x-transition>User not found</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-center w-full">
+                <div :class="(selectedTeam !== '-' && searchUser === '' && !expanded.teamLeft && !expanded.teamRight) ? 'grid grid-cols-1 lg:grid-cols-2 gap-8 w-full' : (selectedTeam === '-' && searchUser === '') ? 'w-full max-w-xl mx-auto' : 'w-full'">
+                    
+                    <div class="glass-card transition-all duration-300 relative" 
+                         :class="expanded.teamLeft ? 'lg:col-span-2 h-auto min-h-[400px]' : ''">
+                        <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                            <h4 class="text-center font-bold text-slate-600 text-xs uppercase tracking-widest" x-text="teamChartLeftTitle"></h4>
+                            <button @click="toggleExpand('teamLeft')" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-lg hover:bg-slate-100">
+                                <template x-if="!expanded.teamLeft"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></template>
+                                <template x-if="expanded.teamLeft"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></template>
+                            </button>
+                        </div>
+                        <div :class="expanded.teamLeft ? 'grid grid-cols-1 lg:grid-cols-2 gap-8' : 'flex flex-col items-center'">
+                            <div class="relative w-full flex justify-center items-start"><div class="h-72 w-full relative"><canvas id="teamChartLeft"></canvas></div></div>
+                            <div class="w-full transition-all duration-300" :class="expanded.teamLeft ? 'border-l border-slate-100 pl-6' : 'mt-6 h-28 list-scroll border-t border-slate-100 pt-4'">
+                                <div x-show="!expanded.teamLeft" class="flex flex-wrap justify-center gap-x-6 gap-y-2">
+                                    <template x-for="(item, index) in legends['teamChartLeft']" :key="index"><div class="legend-item static flex items-center space-x-2"><span class="w-3 h-3 rounded-full" :style="`background-color: ${item.color}`"></span><span class="text-xs font-medium text-slate-600" x-text="item.label"></span></div></template>
+                                </div>
+                                <div x-show="expanded.teamLeft">
+                                    <div class="grid grid-cols-3 gap-2 mb-2 pb-1 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider"><div class="col-span-2">Task Type</div><div class="text-right">Hours</div></div>
+                                    <div class="space-y-1"><template x-for="(item, index) in legends['teamChartLeft']" :key="index"><div class="legend-item static grid grid-cols-3 gap-2 items-center py-1.5 border-b border-slate-50 hover:bg-slate-50 rounded-lg px-2"><div class="col-span-2 flex items-center space-x-2"><span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="`background-color: ${item.color}`"></span><span class="text-xs font-medium text-slate-700 truncate" x-text="item.label" :title="item.label"></span></div><div class="text-right"><span class="text-xs font-bold text-slate-800" x-text="item.value.toFixed(0)"></span></div></div></template></div>
+                                    <div class="mt-2 pt-2 border-t border-slate-200 flex justify-between items-center bg-slate-50 px-2 py-1 rounded"><span class="text-[10px] font-bold text-slate-600 uppercase">Total</span><span class="text-[10px] font-bold text-indigo-600" x-text="getTotal('teamChartLeft') + ' Hrs'"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="glass-card transition-all duration-300 relative" x-show="selectedTeam !== '-' && searchUser === ''"
+                         :class="expanded.teamRight ? 'lg:col-span-2 h-auto min-h-[400px]' : ''">
+                        <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                            <h4 class="text-center font-bold text-slate-600 text-xs uppercase tracking-widest">Timespent by User</h4>
+                            <button @click="toggleExpand('teamRight')" class="text-slate-400 hover:text-indigo-600 transition-colors p-1 rounded-lg hover:bg-slate-100">
+                                <template x-if="!expanded.teamRight"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg></template>
+                                <template x-if="expanded.teamRight"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></template>
+                            </button>
+                        </div>
+                        <div :class="expanded.teamRight ? 'grid grid-cols-1 lg:grid-cols-2 gap-8' : 'flex flex-col items-center'">
+                            <div class="relative w-full flex justify-center items-start"><div class="h-72 w-full relative"><canvas id="teamChartRight"></canvas></div></div>
+                            <div class="w-full transition-all duration-300" :class="expanded.teamRight ? 'border-l border-slate-100 pl-6' : 'mt-6 h-28 list-scroll border-t border-slate-100 pt-4'">
+                                <div x-show="!expanded.teamRight" class="flex flex-wrap justify-center gap-x-6 gap-y-2">
+                                    <template x-for="(item, index) in legends['teamChartRight']" :key="index"><div @click="toggleLegend('teamChartRight', index)" class="legend-item clickable flex items-center space-x-2"><span class="w-3 h-3 rounded-full" :style="`background-color: ${item.color}`"></span><span class="text-xs font-medium text-slate-600" x-text="item.label"></span></div></template>
+                                </div>
+                                <div x-show="expanded.teamRight">
+                                    <div class="grid grid-cols-3 gap-2 mb-2 pb-1 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider"><div class="col-span-2">User</div><div class="text-right">Hours</div></div>
+                                    <div class="space-y-1"><template x-for="(item, index) in legends['teamChartRight']" :key="index"><div @click="toggleLegend('teamChartRight', index)" class="legend-item clickable grid grid-cols-3 gap-2 items-center py-1.5 border-b border-slate-50 hover:bg-slate-50 rounded-lg px-2"><div class="col-span-2 flex items-center space-x-2"><span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="`background-color: ${item.color}`"></span><span class="text-xs font-medium text-slate-700 truncate" x-text="item.label" :title="item.label"></span></div><div class="text-right"><span class="text-xs font-bold text-slate-800" x-text="item.value.toFixed(0)"></span></div></div></template></div>
+                                    <div class="mt-2 pt-2 border-t border-slate-200 flex justify-between items-center bg-slate-50 px-2 py-1 rounded"><span class="text-[10px] font-bold text-slate-600 uppercase">Total</span><span class="text-[10px] font-bold text-indigo-600" x-text="getTotal('teamChartRight') + ' Hrs'"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function dashboardApp() {
+            return {
+                loading: true,
+                sidebarOpen: true,
+                currentTab: 'overview',
+                startDate: '', endDate: '',
+                overviewGroupBy: 'task_group',
+                overviewChartTitle: 'Timespent by Task Group',
+                selectedTeam: '-', 
+                
+                searchUser: '',
+                searchError: false,
+                showDropdown: false,
+                suggestedUsers: [],
+                allUsers: [], 
+
+                teamChartLeftTitle: 'Select Team or Search User',
+                rawData: [], teamList: [],
+                chartInstances: {}, 
+                legends: { overviewChart: [], teamChartLeft: [], teamChartRight: [] },
+                expanded: { overview: false, teamLeft: false, teamRight: false },
+                incompleteTasks: { type: [], sub: [], other: [] },
+                
+                colors: [
+                    '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', 
+                    '#eab308', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#64748b'
+                ],
+
+                async init() {
+                    const today = new Date();
+                    const lastMonth = new Date();
+                    lastMonth.setMonth(today.getMonth() - 1);
+                    this.startDate = lastMonth.toISOString().split('T')[0];
+                    this.endDate = today.toISOString().split('T')[0];
+                    
+                    await this.fetchData();
+                    this.$nextTick(() => {
+                        this.updateOverview();
+                        this.updateTeamView();
+                    });
+                },
+
+                async fetchData() {
+                    this.loading = true;
+                    try {
+                        const res = await fetch('https://script.google.com/macros/s/AKfycbwBxP0nCjD9c76mqylCkzYLAFeixDRsm-7Bxp4L0reY4IipBGfX_AQeqskbIy9nTPlAJQ/exec');
+                        const data = await res.json();
+                        
+                        const roleLookup = {};
+                        if (data.roles) data.roles.forEach(r => roleLookup[String(r.user).trim()] = r.role || 'N/A');
+
+                        const userMap = new Map(); 
+
+                        this.rawData = data.timespent.map((item, index) => {
+                            const worker = String(item.worker || item.User || '').trim();
+                            const email = String(item.worker_email || item.User_Email || '').trim();
+                            const team = String(item.Team_name || item.Team || 'N/A').trim();
+                            
+                            if (worker && !userMap.has(worker)) {
+                                userMap.set(worker, { name: worker, email: email });
+                            }
+
+                            let rawVal = item.work_timeSpentSeconds;
+                            if (typeof rawVal === 'string') {
+                                rawVal = parseFloat(rawVal.replace(/,/g, ''));
+                            }
+                            const hours = parseFloat(rawVal) || 0; 
+
+                            return {
+                                ...item,
+                                Team_name: team,
+                                worker: worker,
+                                email: email,
+                                task_group: String(item.task_group || item.Task_Group || '').trim(),
+                                task_type: String(item.task_type || item.Task_Type || '').trim(),
+                                subtask_type: String(item.subtask_type || item.SubTask_Type || '').trim(),
+                                issues_key: String(item.issues_key || item.Issues_Key || '').trim(),
+                                issues_name: String(item.issues_name || item.Issues_Name || '').trim(),
+                                role: roleLookup[worker] || 'N/A',
+                                hours: hours,
+                                dateISO: this.parseDate(item.work_timeStart)
+                            };
+                        });
+
+                        this.allUsers = Array.from(userMap.values());
+                        this.teamList = [...new Set(this.rawData.map(d => d.Team_name))].filter(t => t !== 'N/A' && t !== '').sort();
+                    } catch (e) { console.error("Error:", e); } 
+                    finally { this.loading = false; }
+                },
+
+                // SEARCH: Prefix Match Only (Start With)
+                handleSearchInput() {
+                    this.searchError = false;
+                    const query = this.searchUser.toLowerCase().trim();
+                    
+                    if (query.length > 0) {
+                        this.suggestedUsers = this.allUsers.filter(u => 
+                            u.name.toLowerCase().startsWith(query) || 
+                            u.email.toLowerCase().startsWith(query)
+                        ).slice(0, 5); 
+                        this.showDropdown = true;
+                    } else {
+                        this.showDropdown = false;
+                    }
+                },
+
+                selectSuggestion(user) {
+                    this.searchUser = user.name;
+                    this.showDropdown = false;
+                    this.performSearch();
+                },
+
+                performSearch() {
+                    this.showDropdown = false;
+                    this.clearTeamAndUpdate();
+                },
+
+                parseDate(val) {
+                    if (!val) return '';
+                    let dStr = String(val).split(',')[0].trim();
+                    if (dStr.includes('/')) {
+                        const p = dStr.split('/');
+                        return (p[2] && p[2].length === 4) ? `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}` : '';
+                    }
+                    const d = new Date(val);
+                    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+                },
+
+                updateOverview() {
+                    if (this.currentTab !== 'overview') return;
+                    this.expanded.overview = false; 
+                    this.$nextTick(() => {
+                        const labelMap = {
+                            'task_group': 'Task Group',
+                            'task_type': 'Task Type',
+                            'Team_name': 'Team',
+                            'role': 'Role',
+                            'testing_subtask': 'Task Group: Testing'
+                        };
+                        this.overviewChartTitle = `Timespent by ${labelMap[this.overviewGroupBy] || this.overviewGroupBy}`;
+
+                        const filtered = this.rawData.filter(d => d.dateISO >= this.startDate && d.dateISO <= this.endDate);
+                        this.processIncomplete(filtered);
+                        
+                        let key = this.overviewGroupBy;
+                        let displayData = filtered;
+                        if (key === 'testing_subtask') {
+                            displayData = filtered.filter(d => d.task_group === 'Testing');
+                            key = 'subtask_type';
+                        }
+                        this.renderChart('overviewChart', displayData, key);
+                    });
+                },
+
+                processIncomplete(data) {
+                    const typeEmpty = new Set();
+                    const subEmpty = new Set();
+                    const otherErrors = new Set();
+
+                    const noSubGroups = ['Development', 'Analysis and Design', 'Management', 'Other', 'Maintenance', 'R&D', 'Deployment'];
+                    const allowedSubMap = {
+                        'Test-Functional Test': ['Create test Document', 'Prepare Test Data', 'Execute Test', 'Coding Automate Test Script', 'Execute Automate Test', 'Support test'],
+                        'Test-Re-Test': ['Re-Test issues/bugs'],
+                        'Test-System Integrate Test': ['Create test Document', 'Prepare Test Data', 'Execute Test', 'Support test'],
+                        'Test-UAT': ['Create test Document', 'Prepare Test Data', 'Support test'],
+                        'Test-Regression Test': ['Create test Document', 'Prepare Test Data', 'Execute Test', 'Coding Automate Test Script', 'Execute Automate Test', 'Support test'],
+                        'Test-Performance test': ['Create test Document', 'Prepare Test Data', 'Load Test', 'Page Load Test', 'Support test']
+                    };
+
+                    data.forEach(d => {
+                        if (!d.issues_key) return; 
+                        const taskObj = JSON.stringify({ team: d.Team_name, key: d.issues_key, name: d.issues_name });
+                        
+                        const t = d.task_type;
+                        const g = d.task_group;
+                        const s = d.subtask_type;
+                        const hasSub = (s && s !== '' && s !== 'N/A' && s !== '-');
+
+                        if (!t || t === '' || t === 'N/A') typeEmpty.add(taskObj);
+                        else if (g === 'Testing' && !hasSub) subEmpty.add(taskObj);
+                        else {
+                            let isInvalid = false;
+                            if (noSubGroups.includes(g) && hasSub) isInvalid = true;
+                            if (allowedSubMap[t] && hasSub && !allowedSubMap[t].includes(s)) isInvalid = true;
+                            if (isInvalid) otherErrors.add(taskObj);
+                        }
+                    });
+
+                    this.incompleteTasks = { 
+                        type: Array.from(typeEmpty).map(JSON.parse), 
+                        sub: Array.from(subEmpty).map(JSON.parse), 
+                        other: Array.from(otherErrors).map(JSON.parse) 
+                    };
+                },
+
+                clearUserAndUpdate() { if(this.selectedTeam !== '-') this.searchUser = ''; this.updateTeamView(); },
+                clearTeamAndUpdate() { 
+                    if(this.searchUser.trim() !== '') this.selectedTeam = '-'; 
+                    this.updateTeamView(); 
+                },
+
+                updateTeamView() {
+                    if (this.currentTab !== 'teamview') return;
+                    this.expanded.teamLeft = false; 
+                    this.expanded.teamRight = false; 
+                    this.$nextTick(() => {
+                        const filtered = this.rawData.filter(d => d.dateISO >= this.startDate && d.dateISO <= this.endDate);
+                        
+                        if (this.selectedTeam !== '-') {
+                            this.searchError = false;
+                            const teamData = filtered.filter(d => d.Team_name === this.selectedTeam);
+                            this.teamChartLeftTitle = `Team ${this.selectedTeam}: Task Type`;
+                            this.renderChart('teamChartLeft', teamData, 'task_type');
+                            this.renderChart('teamChartRight', teamData, 'worker'); 
+                        } else if (this.searchUser.trim() !== '') {
+                            const term = this.searchUser.trim().toLowerCase();
+                            // SEARCH LOGIC: Includes for full search, but StartsWith was for suggestion
+                            // To match request: "Search N -> show User starting with N all first... not N from anywhere"
+                            // Actually, let's keep strict StartsWith for main search too if user insists
+                            const userData = filtered.filter(d => 
+                                String(d.worker).toLowerCase().startsWith(term) || 
+                                String(d.email).toLowerCase().startsWith(term)
+                            );
+                            
+                            if (userData.length === 0) {
+                                this.searchError = true;
+                                this.teamChartLeftTitle = 'User Not Found';
+                                this.renderChart('teamChartLeft', [], '');
+                                this.renderChart('teamChartRight', [], '');
+                            } else {
+                                this.searchError = false;
+                                // Use the first matched name for title or just the search term
+                                const matchName = userData[0].worker;
+                                this.teamChartLeftTitle = `User: ${matchName}`; 
+                                this.renderChart('teamChartLeft', userData, 'task_type');
+                                this.renderChart('teamChartRight', [], ''); 
+                            }
+                        } else {
+                            this.searchError = false;
+                            this.teamChartLeftTitle = 'Select Team or Search User';
+                            this.renderChart('teamChartLeft', [], '');
+                            this.renderChart('teamChartRight', [], '');
+                        }
+                    });
+                },
+
+                renderChart(canvasId, data, key) {
+                    const ctx = document.getElementById(canvasId);
+                    if (!ctx) return;
+                    if (this.chartInstances[canvasId]) this.chartInstances[canvasId].destroy();
+                    
+                    if (!data || data.length === 0) {
+                        this.legends[canvasId] = []; 
+                        return;
+                    }
+
+                    const grouped = {};
+                    data.forEach(d => { 
+                        const k = d[key] || 'N/A'; 
+                        grouped[k] = (grouped[k] || 0) + d.hours; 
+                    });
+                    const sorted = Object.entries(grouped).filter(i => i[1] > 0).sort((a, b) => b[1] - a[1]);
+
+                    this.legends[canvasId] = sorted.map((item, index) => ({
+                        label: item[0],
+                        value: item[1], 
+                        color: this.colors[index % this.colors.length],
+                        hidden: false
+                    }));
+
+                    const self = this;
+
+                    this.chartInstances[canvasId] = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: sorted.map(i => i[0]),
+                            datasets: [{
+                                data: sorted.map(i => i[1]),
+                                backgroundColor: this.colors,
+                                borderWidth: 2,
+                                borderColor: '#ffffff',
+                                hoverOffset: 15
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false, 
+                            cutout: '55%', 
+                            layout: { padding: 10 },
+                            plugins: {
+                                legend: { display: false }, 
+                                tooltip: { 
+                                    enabled: true,
+                                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                    titleColor: '#1e293b',
+                                    bodyColor: '#475569',
+                                    borderColor: '#e2e8f0',
+                                    borderWidth: 1,
+                                    padding: 12,
+                                    callbacks: {
+                                        label: (context) => {
+                                            const label = context.label || '';
+                                            const value = context.raw || 0;
+                                            return ` ${label} : ${value.toFixed(2)} Hrs`;
+                                        }
+                                    }
+                                }
+                            },
+                            onClick: (evt, elements) => {
+                                if (canvasId === 'teamChartRight' && elements.length > 0) {
+                                    const index = elements[0].index;
+                                    const label = self.chartInstances[canvasId].data.labels[index];
+                                    self.searchUser = label; 
+                                    self.performSearch(); 
+                                }
+                            }
+                        }
+                    });
+                },
+
+                toggleExpand(chartId) {
+                    this.expanded[chartId] = !this.expanded[chartId];
+                    setTimeout(() => {
+                        if(this.chartInstances[chartId]) this.chartInstances[chartId].resize();
+                    }, 300);
+                },
+
+                toggleLegend(canvasId, index) {
+                    if (canvasId === 'teamChartRight') {
+                        const item = this.legends[canvasId][index];
+                        this.searchUser = item.label;
+                        this.performSearch();
+                    }
+                },
+
+                getTotal(chartId) {
+                    if (!this.legends[chartId]) return 0;
+                    return this.legends[chartId].reduce((acc, curr) => acc + curr.value, 0).toFixed(0);
+                },
+
+                getColumnName(key) {
+                    const map = {
+                        'task_group': 'Task Group',
+                        'task_type': 'Task Type',
+                        'Team_name': 'Team',
+                        'role': 'Role',
+                        'testing_subtask': 'Subtask'
+                    };
+                    return map[key] || 'Name';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
